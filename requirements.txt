@@ -73,7 +73,7 @@ sphinx==7.2.6
 sphinx-rtd-theme==2.0.0
 
 # 安全
-cryptography==41.0.8
+cryptography>=41.0.8
 
 # 監控和指標
 prometheus-client==0.19.0

@@ -10,6 +10,14 @@ import time
 import os
 from pathlib import Path
 
+def claude_desktop_config_path():
+    """Claude Desktop 設定檔位置（依作業系統）"""
+    if sys.platform == "win32":
+        return Path(os.path.expandvars(r"%APPDATA%\Claude\claude_desktop_config.json"))
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+
 def test_mcp_server():
     """測試 MCP 服務器基本功能"""
     print("=== MCP 服務器測試 ===")
@@ -69,7 +77,13 @@ def test_mcp_server():
         print("✗ MCP SDK 未安裝")
         return False
     print("✓ MCP SDK 已安裝")
-    
+
+    # 檢查排盤引擎安裝
+    if not (node_modules_path / "iztro").exists():
+        print("✗ iztro 排盤引擎未安裝，請在 mcp-server 目錄運行 npm install")
+        return False
+    print("✓ iztro 排盤引擎已安裝")
+
     return True
 
 def test_mcp_server_startup():
@@ -79,9 +93,11 @@ def test_mcp_server_startup():
     try:
         # 啟動 MCP 服務器
         print("啟動 MCP 服務器...")
+        # stdin 保持開啟：MCP stdio 伺服器讀到 EOF 會視為客戶端斷線而結束
         process = subprocess.Popen(
             ['node', 'ziwei-server.js'],
             cwd='mcp-server',
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -129,8 +145,7 @@ def test_claude_config():
     """測試 Claude Desktop 配置"""
     print("\n=== Claude Desktop 配置測試 ===")
     
-    # Windows 配置路徑
-    config_path = Path(os.path.expandvars(r"%APPDATA%\Claude\claude_desktop_config.json"))
+    config_path = claude_desktop_config_path()
     
     if not config_path.exists():
         print(f"✗ Claude Desktop 配置文件不存在: {config_path}")
@@ -160,6 +175,10 @@ def test_claude_config():
             # 檢查路徑是否正確
             if args and len(args) > 0:
                 server_path = Path(args[0])
+                # Claude Desktop 啟動伺服器時的工作目錄不是專案目錄，相對路徑會連線失敗
+                if not server_path.is_absolute():
+                    print(f"✗ 服務器路徑必須是絕對路徑: {server_path}")
+                    return False
                 if server_path.exists():
                     print(f"✓ 服務器路徑有效: {server_path}")
                 else:
@@ -192,7 +211,7 @@ def provide_troubleshooting_tips():
     print("   node ziwei-server.js")
     print()
     print("3. 檢查 Claude Desktop 配置：")
-    print("   配置文件位置: %APPDATA%\\Claude\\claude_desktop_config.json")
+    print(f"   配置文件位置: {claude_desktop_config_path()}")
     print("   確保路徑指向正確的服務器文件")
     print()
     print("4. 重啟 Claude Desktop：")

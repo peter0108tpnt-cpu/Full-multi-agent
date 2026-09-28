@@ -276,27 +276,19 @@ npm start
 
 ### 🔌 MCP 伺服器（選用）
 
-`mcp_server.py` 讓 Claude Desktop、Cursor 等 MCP 客戶端直接呼叫紫微分析。`mcp` 套件需要 Python 3.10+，且與 `requirements.txt` 鎖定的版本衝突，請安裝在獨立環境；分析流程仍在專案的 `venv/`（或 `.venv/`）中執行。
+讓 Claude Desktop、Cursor 等 MCP 客戶端直接取得紫微命盤與分析，完整說明（含 Windows 設定與故障排除）見 [claude_mcp_setup.md](claude_mcp_setup.md)。
+
+- **`mcp-server/ziwei-server.js`**（Node.js 18+）：`ziwei_chart` 工具，以 iztro 在本地排出本命盤，不需網路或 API 金鑰
+- **`mcp_server.py`**（Python 3.10+）：同樣提供 `ziwei_chart`，另有 `analyze_ziwei` 執行多智能體完整分析；`mcp` 套件與 `requirements.txt` 鎖定的版本衝突，請安裝在獨立環境（`requirements-mcp.txt`）
 
 ```bash
-python3.11 -m venv mcp-venv
-mcp-venv/bin/pip install -r requirements-mcp.txt
+cd mcp-server
+npm install
+npm test
+node check-desktop.js --install   # 寫入 Claude Desktop 設定，並驗證連線與排盤結果
 ```
 
-MCP 客戶端設定範例（將路徑換成您的專案位置）：
-
-```json
-{
-  "mcpServers": {
-    "ziwei": {
-      "command": "/path/to/Full-multi-agent/mcp-venv/bin/python",
-      "args": ["/path/to/Full-multi-agent/mcp_server.py"]
-    }
-  }
-}
-```
-
-專案環境不在 `venv/` 或 `.venv/` 時，於設定中加入 `"env": {"ZIWEI_PYTHON": "/path/to/python"}` 指定直譯器。
+完成後從系統匣完全結束 Claude Desktop 再重新開啟。
 
 ## ⚙️ 系統配置
 

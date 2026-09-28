@@ -2,391 +2,132 @@
 
 ## 📋 概述
 
-本指南將幫助您設定Claude MCP (Model Context Protocol) 服務，以便與我們的紫微斗數AI系統整合。
+本專案提供兩個 MCP 伺服器（stdio 傳輸），共用同一個本地排盤引擎 `mcp-server/ziwei-chart.js`（基於 [iztro](https://github.com/SylarLong/iztro)），排盤不需網路或 API 金鑰：
 
-## 🔧 Claude MCP 設定步驟
+| 伺服器 | 啟動檔 | 工具 | 需求 |
+|---|---|---|---|
+| `ziwei-mcp-server` | `mcp-server/ziwei-server.js` | `ziwei_chart`：排出本命盤 | Node.js 18+ |
+| Ziwei Expert Server | `mcp_server.py` | `ziwei_chart`（同上）、`analyze_ziwei`：多智能體完整分析 | Python 3.10+ 獨立環境；`analyze_ziwei` 另需專案 `venv/` 與 API 金鑰 |
 
-### 1. 安裝Claude Desktop
+只需要命盤時，設定 `ziwei-mcp-server` 即可。
 
-首先需要安裝Claude Desktop應用程式：
+## 🔧 設定步驟（Windows）
 
-- **Windows**: 從 [Claude官網](https://claude.ai/download) 下載安裝程式
-- **macOS**: 從 App Store 或官網下載
-- **Linux**: 使用官方提供的AppImage或deb包
+### 1. 安裝依賴
 
-### 2. 配置MCP服務器
+需要 [Node.js 18+](https://nodejs.org/)。在命令提示字元或 PowerShell（以下以 `C:\dev\Full-multi-agent` 為例，請換成您的專案位置）：
 
-在Claude Desktop中配置MCP服務器，需要修改配置文件：
-
-#### Windows 配置路徑
-```
-%APPDATA%\Claude\claude_desktop_config.json
-```
-
-#### macOS 配置路徑
-```
-~/Library/Application Support/Claude/claude_desktop_config.json
+```bat
+cd C:\dev\Full-multi-agent\mcp-server
+npm install
+npm test
 ```
 
-#### Linux 配置路徑
-```
-~/.config/Claude/claude_desktop_config.json
+`npm test` 會驗證排盤結果（含與 fate.windada.com 命盤的逐宮比對）。建議把專案放在 OneDrive 等同步資料夾之外（例如 `C:\dev\Full-multi-agent`），避免 `node_modules` 被同步或被設為「僅線上可用」而導致伺服器啟動失敗。
+
+### 2. 寫入 Claude Desktop 設定並檢查連線
+
+```bat
+node check-desktop.js --install
 ```
 
-### 3. MCP配置文件內容
+這會在 Claude Desktop 設定檔加入（或更新）`ziwei-mcp-server`，使用本機 node 與伺服器的絕對路徑，保留其他伺服器設定並備份原檔（`.bak`），接著照設定啟動伺服器、完成 MCP 握手，並試排一張命盤確認結果正確。之後隨時可用 `node check-desktop.js` 重新檢查。
 
-創建或編輯 `claude_desktop_config.json` 文件：
+也可以手動編輯：Claude Desktop →「設定 → 開發者 → 編輯設定」，設定檔在 `%APPDATA%\Claude\claude_desktop_config.json`（Microsoft Store 版可能在 `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\`，以「編輯設定」開啟的檔案為準）：
 
 ```json
 {
   "mcpServers": {
     "ziwei-mcp-server": {
-      "command": "node",
-      "args": ["./mcp-server/ziwei-server.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": ["C:\\dev\\Full-multi-agent\\mcp-server\\ziwei-server.js"]
     }
   }
 }
 ```
 
-### 4. 創建MCP服務器
+- **路徑一律用絕對路徑**：Claude Desktop 啟動伺服器時的工作目錄不是專案目錄，`./mcp-server/...` 會連線失敗
+- **反斜線要寫成 `\\`**（或改用 `/`）：`"C:\Users\..."` 不是有效的 JSON，Claude Desktop 會整個忽略設定檔
+- `command` 用 `where node` 顯示的完整路徑最穩定
 
-在項目根目錄創建MCP服務器：
+### 3. 重新啟動 Claude Desktop
 
-```bash
-mkdir mcp-server
-cd mcp-server
-npm init -y
-npm install @modelcontextprotocol/sdk
+關閉視窗後 Claude Desktop 仍在系統匣執行，必須在系統匣圖示按右鍵 → **Quit**，再重新開啟。之後在「設定 → 開發者」應看到 `ziwei-mcp-server` 狀態為 running，對話的工具清單中出現 `ziwei_chart`。
+
+### 4.（選用）Python 伺服器
+
+需要多智能體分析 `analyze_ziwei` 時，另建 Python 3.10+ 獨立環境（`mcp` 套件與 `requirements.txt` 鎖定的版本衝突）：
+
+```bat
+cd C:\dev\Full-multi-agent
+py -3.11 -m venv mcp-venv
+mcp-venv\Scripts\pip install -r requirements-mcp.txt
 ```
 
-### 5. MCP服務器實現
+在設定檔的 `mcpServers` 中加入：
 
-創建 `ziwei-server.js` 文件：
-
-```javascript
-#!/usr/bin/env node
-
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { spawn } from 'child_process';
-import path from 'path';
-
-class ZiweiMCPServer {
-  constructor() {
-    this.server = new Server(
-      {
-        name: 'ziwei-mcp-server',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
-    );
-
-    this.setupToolHandlers();
-  }
-
-  setupToolHandlers() {
-    // 列出可用工具
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          {
-            name: 'ziwei_chart',
-            description: '獲取紫微斗數命盤分析',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                gender: {
-                  type: 'string',
-                  description: '性別（男/女）',
-                  enum: ['男', '女']
-                },
-                birth_year: {
-                  type: 'integer',
-                  description: '出生年份（西元年）',
-                  minimum: 1900,
-                  maximum: 2100
-                },
-                birth_month: {
-                  type: 'integer',
-                  description: '出生月份',
-                  minimum: 1,
-                  maximum: 12
-                },
-                birth_day: {
-                  type: 'integer',
-                  description: '出生日期',
-                  minimum: 1,
-                  maximum: 31
-                },
-                birth_hour: {
-                  type: 'string',
-                  description: '出生時辰（子、丑、寅、卯、辰、巳、午、未、申、酉、戌、亥）'
-                }
-              },
-              required: ['gender', 'birth_year', 'birth_month', 'birth_day', 'birth_hour']
-            }
-          },
-          {
-            name: 'web_scraper',
-            description: '爬取網站數據',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                url: {
-                  type: 'string',
-                  description: '目標網站URL'
-                },
-                params: {
-                  type: 'object',
-                  description: '請求參數'
-                }
-              },
-              required: ['url']
-            }
-          },
-          {
-            name: 'data_parser',
-            description: '解析網頁或數據內容',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                html_content: {
-                  type: 'string',
-                  description: 'HTML內容'
-                },
-                parser_type: {
-                  type: 'string',
-                  description: '解析器類型',
-                  enum: ['ziwei', 'general']
-                }
-              },
-              required: ['html_content', 'parser_type']
-            }
-          }
-        ]
-      };
-    });
-
-    // 處理工具調用
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-
-      try {
-        switch (name) {
-          case 'ziwei_chart':
-            return await this.callZiweiChart(args);
-          case 'web_scraper':
-            return await this.callWebScraper(args);
-          case 'data_parser':
-            return await this.callDataParser(args);
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${error.message}`
-            }
-          ],
-          isError: true
-        };
-      }
-    });
-  }
-
-  async callZiweiChart(args) {
-    return new Promise((resolve, reject) => {
-      const pythonScript = path.join(process.cwd(), '..', 'src', 'mcp', 'tools', 'ziwei_tool.py');
-      const python = spawn('python', [pythonScript, JSON.stringify(args)]);
-
-      let output = '';
-      let error = '';
-
-      python.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      python.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      python.on('close', (code) => {
-        if (code === 0) {
-          try {
-            const result = JSON.parse(output);
-            resolve({
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(result, null, 2)
-                }
-              ]
-            });
-          } catch (e) {
-            reject(new Error(`Failed to parse Python output: ${e.message}`));
-          }
-        } else {
-          reject(new Error(`Python script failed: ${error}`));
-        }
-      });
-    });
-  }
-
-  async callWebScraper(args) {
-    // 實現網頁爬取邏輯
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Web scraping for ${args.url} - Implementation needed`
-        }
-      ]
-    };
-  }
-
-  async callDataParser(args) {
-    // 實現數據解析邏輯
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Data parsing for ${args.parser_type} - Implementation needed`
-        }
-      ]
-    };
-  }
-
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('Ziwei MCP Server running on stdio');
-  }
+```json
+"ziwei-expert": {
+  "command": "C:\\dev\\Full-multi-agent\\mcp-venv\\Scripts\\python.exe",
+  "args": ["C:\\dev\\Full-multi-agent\\mcp_server.py"]
 }
-
-const server = new ZiweiMCPServer();
-server.run().catch(console.error);
 ```
 
-### 6. 創建Python工具包裝器
+- `ZIWEI_NODE`（放在該伺服器的 `"env"`）：Python 伺服器找不到 node 時指定其路徑
+- `ZIWEI_PYTHON`：`analyze_ziwei` 使用的 Python 不在專案 `venv\` 或 `.venv\` 時指定
 
-創建 `src/mcp/tools/mcp_wrapper.py`：
+`node mcp-server\check-desktop.js` 會一併檢查這個伺服器。
 
-```python
-#!/usr/bin/env python3
-"""
-MCP工具包裝器
-用於從Node.js調用Python紫微斗數工具
-"""
+### macOS / Linux
 
-import sys
-import json
-from ziwei_tool import ZiweiTool
+設定檔在 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `~/.config/Claude/claude_desktop_config.json`（Linux），步驟相同。macOS 桌面程式的 PATH 通常不含 Homebrew 或 nvm 安裝的 node，`command` 請用 `which node` 顯示的完整路徑；`check-desktop.js --install` 會自動使用完整路徑。
 
-def main():
-    if len(sys.argv) != 2:
-        print(json.dumps({"error": "Invalid arguments"}))
-        sys.exit(1)
-    
-    try:
-        args = json.loads(sys.argv[1])
-        tool = ZiweiTool()
-        result = tool.get_ziwei_chart(args)
-        print(json.dumps(result, ensure_ascii=False))
-    except Exception as e:
-        print(json.dumps({"error": str(e)}, ensure_ascii=False))
-        sys.exit(1)
+## 🧭 `ziwei_chart` 工具
 
-if __name__ == "__main__":
-    main()
-```
+輸入：
 
-### 7. 啟動MCP服務器
+| 參數 | 說明 |
+|---|---|
+| `gender` | `男` / `女` |
+| `birth_year`、`birth_month`、`birth_day` | 出生年月日（預設為國曆） |
+| `birth_hour` | `子`~`亥`（`子` = 早子時 00:00~01:00）、`晚子`（23:00~24:00），或 `0`~`23` 點 |
+| `calendar` | 選填：`solar`（國曆，預設）或 `lunar`（農曆） |
+| `is_leap_month` | 選填：農曆閏月 |
 
-```bash
-# 在mcp-server目錄中
-node ziwei-server.js
-```
+輸出 JSON：
 
-### 8. 重啟Claude Desktop
+- `basic_info`：陽曆、農曆、干支、時辰、五行局 (`wuxing_ju`)、命主 (`ming_zhu`)、身主 (`shen_zhu`)、命宮與身宮地支
+- `sihua`：生年四化
+- `palaces`：由命宮起的十二宮，含干支、是否身宮、主星與亮度、輔星、雜曜、長生/博士/將前/歲前十二神、大限 (`daxian`)、小限 (`xiaoxian`)
 
-配置完成後，重啟Claude Desktop應用程式以載入新的MCP配置。
+### 準確性
+
+`npm test` 以專案根目錄的 `corrected_response.html`（fate.windada.com 對國曆 1990-05-15 午時、陽男的排盤結果）逐宮比對：十二宮干支、十四主星位置、輔星、生年四化、五行局、命主與身主、長生與博士十二神、大限與小限完全一致。已知的流派差異：
+
+- **亮度**：iztro 採《紫微斗數全書》七級（廟、旺、得、利、平、不、陷）；windada 只顯示五級，「得」寫作「地」，「不」併入「陷」
+- **雜曜**：windada 另列月馬與第二個旬空；iztro 另列天廚、天德、月德、年解；天殤與天傷為同一星；截路、空亡在午、未兩宮的分配相反
 
 ## 🔍 驗證設定
 
-### 1. 檢查MCP連接
-
-在Claude Desktop中，您應該能看到MCP服務器已連接的指示。
-
-### 2. 測試工具調用
-
-在Claude Desktop中嘗試以下對話：
-
-```
-請使用紫微斗數工具分析1990年5月15日午時出生的男性命盤
-```
-
-### 3. 檢查日誌
-
-查看MCP服務器的輸出日誌，確認工具調用正常。
+1. `cd mcp-server && npm test`：排盤與伺服器測試
+2. `node mcp-server\check-desktop.js`：以 Claude Desktop 的實際設定啟動伺服器、握手並試排命盤
+3. 在 Claude Desktop 中詢問：「請用紫微斗數工具排出 1990 年 5 月 15 日午時出生男性的命盤」，命宮應為丁亥、天梁陷
 
 ## 🛠️ 故障排除
 
-### 常見問題
+| 症狀 | 原因與處理 |
+|---|---|
+| 「開發者」頁面看不到伺服器 | 設定檔不是有效 JSON（多半是反斜線沒寫成 `\\`），或 Claude Desktop 沒有從系統匣完全結束再開啟 |
+| 伺服器狀態為 failed | 使用了相對路徑 → 改用絕對路徑；或 `command` 找不到 node → 改用 `where node` 的完整路徑 |
+| 工具回傳 `Cannot find package 'iztro'` | 尚未安裝依賴 → 在 `mcp-server\` 執行 `npm install` |
+| Python 伺服器 `No module named 'mcp'` | `command` 指向的 Python 未安裝 `requirements-mcp.txt` |
 
-1. **MCP服務器無法啟動**
-   - 檢查Node.js版本（需要16+）
-   - 確認依賴包已安裝
-   - 檢查文件路徑是否正確
+`check-desktop.js` 會針對以上情況給出具體提示。Claude Desktop 的記錄檔（`mcp.log`、`mcp-server-ziwei-mcp-server.log`）位於：
 
-2. **Python工具調用失敗**
-   - 確認Python環境已激活
-   - 檢查Python依賴包
-   - 驗證文件權限
-
-3. **Claude Desktop無法連接MCP**
-   - 檢查配置文件語法
-   - 確認文件路徑正確
-   - 重啟Claude Desktop
-
-### 調試命令
-
-```bash
-# 檢查MCP服務器狀態
-node ziwei-server.js --debug
-
-# 測試Python工具
-python src/mcp/tools/mcp_wrapper.py '{"gender":"男","birth_year":1990,"birth_month":5,"birth_day":15,"birth_hour":"午"}'
-
-# 檢查Claude Desktop日誌
-# Windows: %APPDATA%\Claude\logs\
-# macOS: ~/Library/Logs/Claude/
-# Linux: ~/.local/share/Claude/logs/
-```
+- **Windows**: `%APPDATA%\Claude\logs\`
+- **macOS**: `~/Library/Logs/Claude/`
 
 ## 📝 注意事項
 
-1. **安全性**: MCP服務器運行在本地，確保只在可信環境中使用
-2. **性能**: 大量請求可能影響系統性能
-3. **更新**: 定期更新Claude Desktop和MCP SDK
-4. **備份**: 備份配置文件以防意外丟失
-
-## 🎯 下一步
-
-設定完成後，您可以：
-
-1. 測試完整的Multi-Agent工作流程
-2. 整合RAG知識庫
-3. 開發前端介面
-4. 部署到生產環境
-
-如果遇到任何問題，請檢查日誌文件或聯繫技術支持。
+1. **安全性**: MCP 伺服器在本機執行，只在可信環境中使用
+2. **版本**: `iztro` 在 `package.json` 鎖定版本，升級後請重新執行 `npm test` 確認排盤結果

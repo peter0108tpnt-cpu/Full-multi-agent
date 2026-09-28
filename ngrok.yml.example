@@ -1,5 +1,5 @@
 version: "2"
-authtoken: 2ixG5c68TBxeAmbAf3vLr40rlZU_7kHsKRPxnHMgn1ZkQxyjS
+authtoken: YOUR_NGROK_AUTHTOKEN  # 從 https://dashboard.ngrok.com 取得
 tunnels:
   backend:
     addr: 8000

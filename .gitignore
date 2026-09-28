@@ -181,5 +181,8 @@ test_result_*.json
 config/keys.py
 config/secrets.py
 
+# ngrok 設定含個人 authtoken（範本見 ngrok.yml.example）
+ngrok.yml
+
 # MCP 伺服器獨立環境
 mcp-venv/

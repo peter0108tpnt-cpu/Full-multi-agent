@@ -274,6 +274,30 @@ npm start
 5. 欣賞巫師占卜動畫 🧙‍♂️
 6. 查看詳細的 Markdown 格式分析結果 📊
 
+### 🔌 MCP 伺服器（選用）
+
+`mcp_server.py` 讓 Claude Desktop、Cursor 等 MCP 客戶端直接呼叫紫微分析。`mcp` 套件需要 Python 3.10+，且與 `requirements.txt` 鎖定的版本衝突，請安裝在獨立環境；分析流程仍在專案的 `venv/`（或 `.venv/`）中執行。
+
+```bash
+python3.11 -m venv mcp-venv
+mcp-venv/bin/pip install -r requirements-mcp.txt
+```
+
+MCP 客戶端設定範例（將路徑換成您的專案位置）：
+
+```json
+{
+  "mcpServers": {
+    "ziwei": {
+      "command": "/path/to/Full-multi-agent/mcp-venv/bin/python",
+      "args": ["/path/to/Full-multi-agent/mcp_server.py"]
+    }
+  }
+}
+```
+
+專案環境不在 `venv/` 或 `.venv/` 時，於設定中加入 `"env": {"ZIWEI_PYTHON": "/path/to/python"}` 指定直譯器。
+
 ## ⚙️ 系統配置
 
 ### 🎯 分析領域配置

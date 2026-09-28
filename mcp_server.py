@@ -1,10 +1,35 @@
+"""
+紫微斗數 MCP 伺服器 (stdio)
+
+安裝: pip install -r requirements-mcp.txt  (Python 3.10+，與主專案環境分開)
+分析流程在專案自己的 Python 環境執行：預設使用專案內的 venv/ 或 .venv/，
+也可用環境變數 ZIWEI_PYTHON 指定直譯器路徑。
+"""
+
+import os
 import sys
 import json
 import subprocess
+from pathlib import Path
 from mcp.server.fastmcp import FastMCP
+
+# 以本檔位置定位專案根目錄，不依賴啟動時的工作目錄
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 # 初始化 MCP 伺服器
 mcp = FastMCP("Ziwei Expert Server")
+
+def resolve_project_python() -> str:
+    """找出執行分析流程的 Python：ZIWEI_PYTHON > 專案 venv/.venv > 目前的直譯器"""
+    override = os.environ.get("ZIWEI_PYTHON")
+    if override:
+        return override
+    for venv_dir in ("venv", ".venv"):
+        for relative in (("bin", "python"), ("Scripts", "python.exe")):
+            candidate = PROJECT_ROOT.joinpath(venv_dir, *relative)
+            if candidate.exists():
+                return str(candidate)
+    return sys.executable
 
 @mcp.tool()
 def analyze_ziwei(gender: str, birth_year: int, birth_month: int, birth_day: int, birth_hour: str, domain_type: str = "comprehensive") -> str:
@@ -22,12 +47,17 @@ def analyze_ziwei(gender: str, birth_year: int, birth_month: int, birth_day: int
     # 由於需要依賴原專案 (Python 3.9) 的諸多巨型套件 (如 torch, langchain)
     # 這裡我們透過 subprocess 呼叫原有的 venv 環境來執行
     cmd = [
-        "venv/bin/python", "run_analysis.py",
+        resolve_project_python(), str(PROJECT_ROOT / "run_analysis.py"),
         gender, str(birth_year), str(birth_month), str(birth_day), birth_hour, domain_type
     ]
-    
+    # 強制子行程以 UTF-8 輸出中文，避免 Windows 預設編碼 (cp950) 造成亂碼
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd="/Users/paichunc/Library/CloudStorage/OneDrive-個人/0_Ai/NotebookLM/Full-multi-agent")
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=PROJECT_ROOT, env=env
+        )
         
         if result.returncode != 0:
             return f"[分析發錯錯誤]\n\n錯誤代碼: {result.returncode}\n{result.stderr}"

@@ -180,3 +180,6 @@ test_result_*.json
 *token*
 config/keys.py
 config/secrets.py
+
+# MCP 伺服器獨立環境
+mcp-venv/

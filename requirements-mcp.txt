@@ -1,0 +1,4 @@
+# MCP 伺服器 (mcp_server.py) 專用依賴，需要 Python 3.10+
+# 請安裝在獨立環境：mcp 需要較新的 pydantic / uvicorn，與 requirements.txt 鎖定的版本衝突
+# mcp 2.x 將 FastMCP 更名為 MCPServer，mcp_server.py 使用 1.x API
+mcp>=1.2.0,<2

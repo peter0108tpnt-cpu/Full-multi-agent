@@ -136,6 +136,9 @@ test_results/
 *.json
 !package.json
 !requirements.txt
+# MCP 伺服器的依賴鎖定檔與排盤測試資料
+!mcp-server/package-lock.json
+!mcp-server/test/fixtures/*.json
 
 # 測試文件和調試文件
 test_*.py

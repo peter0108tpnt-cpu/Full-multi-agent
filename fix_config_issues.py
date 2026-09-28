@@ -19,13 +19,14 @@ def fix_env_file():
     
     print("🔧 修復 .env 文件配置...")
     
-    # 修復 Anthropic 模型名稱
-    if "Claude Sonnet 3.5 2024-10-22" in content:
-        content = content.replace(
-            "ANTHROPIC_MODEL=Claude Sonnet 3.5 2024-10-22",
-            "ANTHROPIC_MODEL=claude-3-5-sonnet-20241022"
-        )
-        print("✅ 修復 Anthropic 模型名稱格式")
+    # 修復 Anthropic 模型名稱（舊顯示名稱與已退役的 Claude 3.5 Sonnet 都改為目前模型）
+    for old_model in ("Claude Sonnet 3.5 2024-10-22", "claude-3-5-sonnet-20241022"):
+        if f"ANTHROPIC_MODEL={old_model}" in content:
+            content = content.replace(
+                f"ANTHROPIC_MODEL={old_model}",
+                "ANTHROPIC_MODEL=claude-opus-5"
+            )
+            print("✅ 修復 Anthropic 模型名稱")
     
     # 檢查必要的配置
     required_configs = [

@@ -81,7 +81,7 @@ def create_simple_test():
         load_dotenv(override=True)
         
         api_key = os.getenv("ANTHROPIC_API_KEY")
-        model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+        model = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
         
         if not api_key or api_key.startswith('your_'):
             print("❌ 環境變數中沒有有效的 API 密鑰")
@@ -97,12 +97,14 @@ def create_simple_test():
         
         response = client.messages.create(
             model=model,
-            max_tokens=20,
+            max_tokens=1024,
             messages=[{"role": "user", "content": "Hello"}]
         )
-        
+
         print("✅ 直接 Anthropic 測試成功")
-        print(f"   回應: {response.content[0].text}")
+        # 回應可能先有 thinking 區塊，只取文字區塊
+        reply = "".join(block.text for block in response.content if block.type == "text")
+        print(f"   回應: {reply}")
         
         return True
         

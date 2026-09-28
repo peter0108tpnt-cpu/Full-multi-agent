@@ -30,8 +30,12 @@ class ClaudeAgent(BaseAgent):
         )
         
         # Claude特有設定
-        self.max_context_length = 200000  # Claude 3.5 Sonnet的上下文長度
-        self.temperature = 0.3  # 較低溫度以確保邏輯性
+        self.max_context_length = 1000000  # Claude Opus 5 的上下文長度
+        # Claude Opus 5 不接受 temperature；改用 effort 控制思考深度與延遲（協調器給每個 Agent 45 秒）
+        # 若改用不支援 effort 的模型（如 claude-haiku-4-5），設為 None
+        self.effort = "medium"
+        # 安全分類器拒答時由伺服器改用建議模型重跑；僅支援 claude-opus-5、claude-fable-5-1 等模型
+        self.refusal_fallback = True
         
         # 添加Claude的專業能力
         self.add_capability("logical_reasoning")
@@ -66,17 +70,33 @@ class ClaudeAgent(BaseAgent):
                 })
             
             # 調用Claude API
-            response = await asyncio.to_thread(
-                self.client.messages.create,
-                model=self.model_name,
-                max_tokens=4000,
-                temperature=self.temperature,
-                system=system_prompt,
-                messages=claude_messages
-            )
-            
+            request = {
+                "model": self.model_name,
+                "max_tokens": 16000,  # 預設開啟 adaptive thinking，思考與回答共用此上限
+                "system": system_prompt,
+                "messages": claude_messages
+            }
+            if self.effort:
+                request["output_config"] = {"effort": self.effort}
+            if self.refusal_fallback:
+                request["betas"] = ["server-side-fallback-2026-07-01"]
+                request["fallbacks"] = "default"
+
+            response = await asyncio.to_thread(self.client.beta.messages.create, **request)
+
+            if response.stop_reason == "refusal":
+                category = response.stop_details.category if response.stop_details else None
+                raise RuntimeError(f"Claude 拒絕回應此請求 (category: {category})")
+
+            # 回應可能包含 thinking / fallback 區塊，只取文字區塊
+            text = "".join(block.text for block in response.content if block.type == "text")
+            if not text:
+                raise RuntimeError(f"Claude 未回傳文字內容 (stop_reason: {response.stop_reason})")
+            if response.stop_reason == "max_tokens":
+                self.logger.warning("Claude 回應達到 max_tokens 上限，內容可能被截斷")
+
             self.set_status(AgentStatus.COMPLETED)
-            return response.content[0].text
+            return text
             
         except Exception as e:
             self.set_status(AgentStatus.ERROR)
@@ -126,7 +146,7 @@ class ClaudeAgent(BaseAgent):
                 reasoning=f"使用Claude {self.model_name}進行邏輯推理和深度分析",
                 metadata={
                     "model": self.model_name,
-                    "temperature": self.temperature,
+                    "effort": self.effort,
                     "task_type": task.task_type
                 },
                 processing_time=processing_time

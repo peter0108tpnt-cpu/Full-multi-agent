@@ -47,12 +47,13 @@ def check_claude_key():
         print("\n🧪 測試 API 密鑰...")
         try:
             import anthropic
+            from src.config.settings import get_settings
             client = anthropic.Anthropic(api_key=anthropic_key)
-            
-            # 簡單測試
+
+            # 簡單測試（使用系統實際呼叫的模型；預設開啟思考，需保留 max_tokens 空間）
             response = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=10,
+                model=get_settings().anthropic.model,
+                max_tokens=1024,
                 messages=[{"role": "user", "content": "Hello"}]
             )
             print("✅ API 密鑰測試成功")

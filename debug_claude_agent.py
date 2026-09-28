@@ -79,8 +79,8 @@ async def debug_claude_agent():
         
         try:
             response = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=20,
+                model=settings.anthropic.model,
+                max_tokens=1024,
                 messages=[{"role": "user", "content": "Hello"}]
             )
             print("   ✅ 原始客戶端測試成功")

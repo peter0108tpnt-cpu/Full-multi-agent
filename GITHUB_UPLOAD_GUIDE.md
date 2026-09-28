@@ -58,7 +58,7 @@ OPENAI_TIMEOUT=30
 
 # Anthropic API 設定  
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_MODEL=claude-opus-5
 ANTHROPIC_TIMEOUT=35
 
 # MCP 設定

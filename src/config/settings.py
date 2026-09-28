@@ -26,7 +26,7 @@ class AnthropicSettings(BaseSettings):
     """Anthropic Claude API 設定"""
     api_key: Optional[str] = Field(None, env="ANTHROPIC_API_KEY")
     base_url: str = Field("https://api.anthropic.com", env="ANTHROPIC_BASE_URL")
-    model: str = Field("claude-3-5-sonnet-20241022", env="ANTHROPIC_MODEL")
+    model: str = Field("claude-opus-5", env="ANTHROPIC_MODEL")
     timeout: int = Field(35, env="ANTHROPIC_TIMEOUT")  # 減少Anthropic API超時
     max_retries: int = Field(3, env="ANTHROPIC_MAX_RETRIES")
 

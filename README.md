@@ -199,7 +199,7 @@ ANTHROPIC_API_KEY=sk-ant-your_anthropic_api_key_here
 
 # 🤖 模型配置 (使用 GPT-4o Mini 節省成本)
 OPENAI_MODEL_GPT4O=gpt-4o-mini
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_MODEL=claude-opus-5
 
 # 🔍 RAG 系統配置
 EMBEDDING_MODEL=BAAI/bge-m3
